@@ -1,6 +1,6 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import mongoose from 'mongoose';
+import { driver, createSession } from './neo4jSession.js';
 import cors from 'cors';
 import storyRoutes from "./routes/stories.js";
 import dotenv from "dotenv";
@@ -14,20 +14,28 @@ app.use(cors());
 app.use("/stories",storyRoutes);
 app.use("/user",userRoutes);
 
-const MONGO_URI="mongodb+srv://snapy:GOHARDWORKme11@cluster0.mpu2bhw.mongodb.net/?retryWrites=true&w=majority";
 const PORT=process.env.PORT||5001;
 
-const connectDB=async()=>{
+
+const connectDB = async() => {
+    const session = createSession();
     try{
-        await mongoose.connect(MONGO_URI);
-        app.listen(PORT,()=>console.log(`Server Running on Port: ${PORT}`));
+        await session.run('RETURN 1');
+        console.log('Neo4j database constraints initialized.');
+        app.listen(PORT, () => console.log(`Server Running on Port: ${PORT}`));
+    } catch(error){
+        console.error('Connection to Neo4j failed', error.message);
+    } finally{
+        await session.close();
     }
-    catch(err){
-        console.log("Error in Connection");
-    }
-}
+};
 connectDB();
 
-mongoose.connection.on("open",()=>console.log("Connection Estabilished"));
+driver.onCompleted = () => console.log('Connected to Neo4j database successfully');
+driver.onError = (error) => console.error('Error connecting to Neo4j', error);
 
+process.on('exit', () => driver.close());
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
 
+export default app;
